@@ -10,16 +10,16 @@
       <Board :game="game" :size="gameSize" @move="move"/>
     </div>
     <Waiting v-if="isWaiting" :waitingAnimate="waitingAnimate" />
-    <button v-if="full && !notFinish(game)" @click="playAgain" class="btn" style="margin-top: 15px; font-size: 20px;">
+    <button v-if="full && !notFinish(game)" @click="playAgain" class="btn playagain-btn">
       Play again
     </button>
 
-    <button v-if="full && notFinish(game)" @click="requestDrawGame" class="btn-i" style="margin-top: 10px;">
+    <button v-if="full && notFinish(game)" @click="requestDrawGame" class="btn-i" style="margin-top: 10px; margin-bottom: 15px;">
       <span style="font-size: 20px">🤝</span>&nbsp;&nbsp;{{is0x0(game.requestDraw) ? 'Request Draw' :
       isMe(game.requestDraw) ? 'Requested' : 'Accept Draw'}}
     </button>
     <div v-if="full && notFinish(game) && !is0x0(game.requestDraw) && !isMe(game.requestDraw)"
-      style="color: rgba(255, 255, 255, 0.6); font-size: 13px; font-family: monospace;">
+      style="color: rgba(255, 255, 255, 0.6); font-size: 13px; font-family: monospace; margin-top: -10px;">
       {{game.requestDraw == game.playerO ? 'Player O request Draw' : 'Player Y request Draw'}}
     </div>
     <!-- <button v-if="full && notFinish(game)" @click="surrender" class="btn-i" style="margin-top: 10px;">
@@ -166,7 +166,6 @@ export default {
   methods: {
     moveBoarCenter() {
       setTimeout(() => {
-        console.log('scrool');
         window.scrollTo((450 - window.innerWidth) / 2, 0);
       }, 100);
     },
@@ -658,5 +657,14 @@ export default {
 
 .btn-i:hover {
   box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.48);
+}
+
+.playagain-btn {
+  margin-top: 15px;
+  font-size: 20px;
+  position: fixed;
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 </style>
