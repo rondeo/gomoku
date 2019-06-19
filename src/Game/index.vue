@@ -19,7 +19,7 @@
       isMe(game.requestDraw) ? 'Requested' : 'Accept Draw'}}
     </button>
     <div v-if="full && notFinish(game) && !is0x0(game.requestDraw) && !isMe(game.requestDraw)"
-      style="color: rgba(255, 255, 255, 0.6); font-size: 13px; font-family: monospace; margin-top: -10px;">
+      style="color: rgba(255, 255, 255, 0.6); font-size: 13px; font-family: monospace; margin-top: -10px; margin-bottom: 15px;">
       {{game.requestDraw == game.playerO ? 'Player O request Draw' : 'Player Y request Draw'}}
     </div>
     <!-- <button v-if="full && notFinish(game)" @click="surrender" class="btn-i" style="margin-top: 10px;">
@@ -296,8 +296,9 @@ export default {
         var hash = await Contract.joinGame(
           this.game.playerX == this.address ? this.game.playerO : this.game.playerX
         , 0, 1);
-        this.reset();
         await Contract.get.checkTx(hash);
+        this.reset();
+        this.getGame();
         this.isDoingTransaction = false;
         this.$Progress.finish();
         this.moveBoarCenter();
