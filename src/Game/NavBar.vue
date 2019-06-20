@@ -1,12 +1,14 @@
 <template>
   <div class="navbar">
-    <button @click="() => $emit('quit')" class="btn-back" style="">
+    <button @click="() => $emit('quit')" class="btn-back" style="width: 100px;">
       <img src="./imgs/left.svg" width="20px" style="margin-top: -2px;"/>&nbsp;&nbsp;<span>BACK</span>
     </button>
     <div style="color: #ffc107;">ROOM: {{game.index || 0}}</div>
-    <button class="btn-chat" @click="() => $emit('chat')">
-      <img src="./imgs/chat.svg" width="25px"/>
-    </button>
+    <div style="width: 100px; text-align: right; padding-right: 10px;">
+      <button class="btn-chat" @click="() => $emit('chat')">
+        <img src="./imgs/chat.svg" width="25px"/>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -21,7 +23,6 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 0 0;
   font-size: 16px;
 }
 

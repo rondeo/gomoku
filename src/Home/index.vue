@@ -211,7 +211,7 @@ export default {
           return;
         }
 
-        if (msg.indexOf('User denied transaction signature.') == -1) {
+        if (msg.indexOf('cancelled') == -1 && msg.indexOf('User denied transaction signature.') == -1) {
           this.errMsg = 'Error, you can not join this game. Error details: ' + msg;
         }
       }
@@ -237,7 +237,7 @@ export default {
           return;
         }
 
-        if (msg.indexOf('User denied transaction signature.') == -1) {
+        if (msg.indexOf('cancelled') == -1 && msg.indexOf('User denied transaction signature.') == -1) {
           this.errMsg = 'Error, you can not join this game. Error details: ' + msg;
         }
       }
@@ -258,7 +258,7 @@ export default {
 }
 .btn {
   background: white;
-  padding: 10px 20px;
+  padding: 10px 40px;
   font-family: var(--font-serif);
   border-radius: 50px;
   font-size: 20px;

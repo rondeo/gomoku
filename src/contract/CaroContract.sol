@@ -46,36 +46,98 @@ contract Gomoku {
     }));
   }
 
-  function () external payable {
-    require(msg.sender == owner);
+  // winline: ROW = 1, COLUMN = 2, LEFT-RIGHT: 3, RIGHT-LEFT: 4
+  function checkWin(uint board, uint winLine, uint start) public view returns(bool) {
+    if (start >= SIZE * SIZE) return false;
+
+    uint mark = 0;
+
+    if (winLine == 1) {
+      if (start % SIZE >= SIZE - 4) return false;
+      for (uint i = start; i <= start + 4; i++) {
+        mark |= 1 << i;
+      }
+    }
+    else if (winLine == 2) {
+      if (start / SIZE >=  SIZE - 4) return false;
+
+      for (uint i = start; i <= start + SIZE * 4; i += SIZE) {
+        mark |= 1 << i;
+      }
+    }
+    else if (winLine == 3) {
+      if (start % SIZE >= SIZE - 4 || start / SIZE >=  SIZE - 4) return false;
+
+      for (uint i = start; i <= start + SIZE * 4 + 4; i += SIZE + 1) {
+        mark |= 1 << i;
+      }
+    }
+    else if (winLine == 4) {
+      if (start % SIZE < 4 || start / SIZE >=  SIZE - 4) return false;
+
+      for (uint i = start; i <= start + SIZE * 4 - 4; i += SIZE - 1) {
+        mark |= 1 << i;
+      }
+    }
+
+    return mark & board == mark;
   }
 
-  function withdraw(uint amount) public {
-    require(msg.sender == owner);
-    msg.sender.transfer(amount);
+  function gameOf(address player) public view
+    returns(uint index, address playerX, address playerO, uint boardX, uint boardO, address moveOf, uint movedAtBlock, uint lastMove, uint result, address requestDraw) {
+    Game memory game = games[players[player]];
+    index = players[player];
+    result = game.result;
+    playerX = game.playerX;
+    playerO = game.playerO;
+    moveOf = game.moveOf;
+    boardX = game.boardX;
+    boardO = game.boardO;
+    movedAtBlock = game.movedAtBlock;
+    lastMove = game.lastMove;
+    requestDraw = game.requestDraw;
   }
 
-  function setting(uint size, uint betAmount, uint min, uint fee) public {
-    require(msg.sender == owner);
-    SIZE = size;
-    BET_AMOUNT = betAmount;
-    ALIAS_MIN_BALANCE = min;
-    ALIAS_FEE_BALANCE = fee;
-
-    SIZE = SIZE > 10 ? SIZE : 10;
-    SIZE = SIZE <= 15 ? SIZE : 15;
-
-    BET_AMOUNT = BET_AMOUNT > 1 ether ? BET_AMOUNT : 1 ether;
-    BET_AMOUNT = BET_AMOUNT < 1000 ether ? BET_AMOUNT : 1000 ether;
-
-    ALIAS_MIN_BALANCE = ALIAS_MIN_BALANCE > 0.0001 ether ? ALIAS_MIN_BALANCE : 0.0001 ether;
-    ALIAS_MIN_BALANCE = ALIAS_MIN_BALANCE < 0.1 ether ? ALIAS_MIN_BALANCE : 0.1 ether;
-
-    ALIAS_FEE_BALANCE = ALIAS_FEE_BALANCE > 0.001 ether ? ALIAS_FEE_BALANCE : 0.001 ether;
-    ALIAS_FEE_BALANCE = ALIAS_FEE_BALANCE < 0.5 ether ? ALIAS_FEE_BALANCE : 0.5 ether;
+  function getPlayerAndTryToSendFeeForAlias(address payable sender) private returns (address payable) {
+    address payable player =  sender;
+    if (aliasPlayer[sender] != address(0x00)) {
+      player = aliasPlayer[sender];
+      if (sender.balance < ALIAS_MIN_BALANCE) {
+        sender.transfer(ALIAS_FEE_BALANCE);
+      }
+    }
+    return player;
   }
 
-  function joinGame(address payable playerAlias, address withPlayer, uint roomIndex) public payable {
+  function removeFromWatingGame(uint index) private {
+    for (uint i = 0; i < waitingGames.length; i++) {
+      if (waitingGames[i] == index) {
+        waitingGames[i] = waitingGames[waitingGames.length - 1];
+        waitingGames.pop();
+        break;
+      }
+    }
+  }
+
+  function addNewGame(address payable player, bool addToWaiting) private {
+    games.push(Game({
+      boardX: 0,
+      boardO: 0,
+      playerX: player,
+      playerO: address(0x0),
+      result: 0,
+      moveOf: player,
+      lastMove: 0,
+      movedAtBlock: 0,
+      requestDraw: address(0x0)
+    }));
+    players[player] = games.length - 1;
+    if (addToWaiting) {
+      waitingGames.push(games.length - 1);
+    }
+  }
+
+  function joinGame(address payable playerAlias, address withPlayer, uint roomIndex) external payable {
     address payable player = msg.sender;
     uint value = msg.value;
 
@@ -122,7 +184,7 @@ contract Gomoku {
     }
   }
 
-  function quitGame() public {
+  function quitGame() external {
     address payable player = msg.sender;
     require(players[player] > 0);
     require(games[players[player]].result == 0);
@@ -143,43 +205,8 @@ contract Gomoku {
     }
   }
 
-  function removeFromWatingGame(uint index) private {
-    for (uint i = 0; i < waitingGames.length; i++) {
-      if (waitingGames[i] == index) {
-        waitingGames[i] = waitingGames[waitingGames.length - 1];
-        waitingGames.pop();
-        break;
-      }
-    }
-  }
-
-  function addNewGame(address payable player, bool addToWaiting) private {
-    games.push(Game({
-      boardX: 0,
-      boardO: 0,
-      playerX: player,
-      playerO: address(0x0),
-      result: 0,
-      moveOf: player,
-      lastMove: 0,
-      movedAtBlock: 0,
-      requestDraw: address(0x0)
-    }));
-    players[player] = games.length - 1;
-    if (addToWaiting) {
-      waitingGames.push(games.length - 1);
-    }
-  }
-
-  function move(uint place, uint winLine, uint start) public {
-    address payable player =  msg.sender;
-
-    if (aliasPlayer[msg.sender] != address(0x00)) {
-      player = aliasPlayer[msg.sender];
-      if (msg.sender.balance < ALIAS_MIN_BALANCE) {
-        msg.sender.transfer(ALIAS_FEE_BALANCE);
-      }
-    }
+  function move(uint place, uint winLine, uint start) external {
+    address payable player = getPlayerAndTryToSendFeeForAlias(msg.sender);
 
     Game storage game = games[players[player]];
 
@@ -223,75 +250,28 @@ contract Gomoku {
     }
   }
 
-  // winline: ROW = 1, COLUMN = 2, LEFT-RIGHT: 3, RIGHT-LEFT: 4
-  function checkWin(uint board, uint winLine, uint start) public view returns(bool) {
-    if (start >= SIZE * SIZE) return false;
-
-    uint mark = 0;
-
-    if (winLine == 1) {
-      if (start % SIZE >= SIZE - 4) return false;
-      for (uint i = start; i <= start + 4; i++) {
-        mark |= 1 << i;
-      }
-    }
-    else if (winLine == 2) {
-      if (start / SIZE >=  SIZE - 4) return false;
-
-      for (uint i = start; i <= start + SIZE * 4; i += SIZE) {
-        mark |= 1 << i;
-      }
-    }
-    else if (winLine == 3) {
-      if (start % SIZE >= SIZE - 4 || start / SIZE >=  SIZE - 4) return false;
-
-      for (uint i = start; i <= start + SIZE * 4 + 4; i += SIZE + 1) {
-        mark |= 1 << i;
-      }
-    }
-    else if (winLine == 4) {
-      if (start % SIZE < 4 || start / SIZE >=  SIZE - 4) return false;
-
-      for (uint i = start; i <= start + SIZE * 4 - 4; i += SIZE - 1) {
-        mark |= 1 << i;
-      }
-    }
-
-    return mark & board == mark;
-  }
-
-  function claimFinishGame() public {
-    address payable player = msg.sender;
-    if (aliasPlayer[msg.sender] != address(0x00)) {
-      player = aliasPlayer[msg.sender];
-    }
+  function claimFinishGame() external {
+    address payable player = getPlayerAndTryToSendFeeForAlias(msg.sender);
     Game storage game = games[players[player]];
     if (game.result == 0 && game.movedAtBlock > 0 && block.number - game.movedAtBlock > 15) {
       if (game.moveOf == game.playerX) {
         game.result = 2;
         game.playerO.transfer(BET_AMOUNT / 100 * (100 - FEE));
       }
-      else {
+      else if (game.moveOf == game.playerO) {
         game.result = 1;
         game.playerX.transfer(BET_AMOUNT / 100 * (100 - FEE));
       }
     }
   }
 
-  function requestDrawGame() public {
-    address payable player =  msg.sender;
-
-    if (aliasPlayer[msg.sender] != address(0x00)) {
-      player = aliasPlayer[msg.sender];
-      if (msg.sender.balance < ALIAS_MIN_BALANCE) {
-        msg.sender.transfer(ALIAS_FEE_BALANCE);
-      }
-    }
+  function requestDrawGame() external {
+    address payable player = getPlayerAndTryToSendFeeForAlias(msg.sender);
 
     Game storage game = games[players[player]];
 
-    require(game.result == 0);
-    require(game.playerX == player || game.playerO == player);
+    if (game.result > 0) return;
+    if (game.playerX != player && game.playerO != player) return;
 
     if (game.requestDraw == address(0x0)) {
       game.requestDraw = player;
@@ -303,18 +283,32 @@ contract Gomoku {
     }
   }
 
-  function gameOf(address player) public view
-    returns(uint index, address playerX, address playerO, uint boardX, uint boardO, address moveOf, uint movedAtBlock, uint lastMove, uint result, address requestDraw) {
-    Game memory game = games[players[player]];
-    index = players[player];
-    result = game.result;
-    playerX = game.playerX;
-    playerO = game.playerO;
-    moveOf = game.moveOf;
-    boardX = game.boardX;
-    boardO = game.boardO;
-    movedAtBlock = game.movedAtBlock;
-    lastMove = game.lastMove;
-    requestDraw = game.requestDraw;
+  function withdraw(uint amount) external {
+    require(msg.sender == owner);
+    msg.sender.transfer(amount);
+  }
+
+  function setting(uint size, uint betAmount, uint min, uint fee) external {
+    require(msg.sender == owner);
+    SIZE = size;
+    BET_AMOUNT = betAmount;
+    ALIAS_MIN_BALANCE = min;
+    ALIAS_FEE_BALANCE = fee;
+
+    SIZE = SIZE > 10 ? SIZE : 10;
+    SIZE = SIZE <= 15 ? SIZE : 15;
+
+    BET_AMOUNT = BET_AMOUNT > 1 ether ? BET_AMOUNT : 1 ether;
+    BET_AMOUNT = BET_AMOUNT < 1000 ether ? BET_AMOUNT : 1000 ether;
+
+    ALIAS_MIN_BALANCE = ALIAS_MIN_BALANCE > 0.0001 ether ? ALIAS_MIN_BALANCE : 0.0001 ether;
+    ALIAS_MIN_BALANCE = ALIAS_MIN_BALANCE < 0.1 ether ? ALIAS_MIN_BALANCE : 0.1 ether;
+
+    ALIAS_FEE_BALANCE = ALIAS_FEE_BALANCE > 0.001 ether ? ALIAS_FEE_BALANCE : 0.001 ether;
+    ALIAS_FEE_BALANCE = ALIAS_FEE_BALANCE < 0.5 ether ? ALIAS_FEE_BALANCE : 0.5 ether;
+  }
+
+  function () external payable {
+    require(msg.sender == owner);
   }
 }

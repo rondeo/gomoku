@@ -1,6 +1,6 @@
 <template>
   <div class="move-of">
-    <div style="width: 80px;" :style="{ opacity: game.moveOf == game.playerX ? 1 : 0.4 }">
+    <div style="width: 90px;" :style="{ opacity: game.moveOf == game.playerX ? 1 : 0.4 }">
       <img src="./imgs/x.svg" width="30px"/>
       <div>{{game.playerX == address ? 'You' : game.playerX == '0x0000000000000000000000000000000000000000' ? '&nbsp;' : game.playerX.slice(0, 7)}}</div>
     </div>
@@ -17,10 +17,11 @@
         <div style="color: #00b500; font-size: 30px; line-height: 35px;">{{gameResult}}</div>
       </div>
     </div>
-    <div style="width: 80px;" :style="{ opacity: game.moveOf == game.playerO ? 1 : 0.4 }">
+    <div style="width: 90px;" :style="{ opacity: game.moveOf == game.playerO ? 1 : 0.4 }">
       <img src="./imgs/o.svg" width="30px"/>
       <div>{{game.playerO == address ? 'You' : game.playerO == '0x0000000000000000000000000000000000000000' ? '&nbsp;': game.playerO.slice(0, 7)}}</div>
     </div>
+    <div v-if="full" class="hightlight-player" :class="game.moveOf == game.playerX ? 'left' : 'right'" />
   </div>
 </template>
 
@@ -89,6 +90,7 @@ export default {
     color: #333333;
     background: rgba(256, 256, 256, 0.8);
     border-radius: 5px 5px 0 0;
+    position: relative;
   }
 
   @media(max-width: 767px) {
@@ -106,5 +108,24 @@ export default {
   .status {
     color: #ff9800;
     font-size: 30px;
+  }
+
+  .hightlight-player {
+    position: absolute;
+    height: 3px;
+    width: 90px;
+    bottom: 0;
+    background: #2196F3;
+    transition: 0.5s all;
+  }
+
+  .hightlight-player.left {
+    left: 20px;
+    background: #2196F3;
+  }
+
+  .hightlight-player.right {
+    left: calc(100% - 110px);
+    background: #F44336;
   }
 </style>

@@ -10,7 +10,7 @@
       <Board :game="game" :size="gameSize" @move="move"/>
     </div>
     <Waiting v-if="isWaiting" :waitingAnimate="waitingAnimate" />
-    <button v-if="full && !notFinish(game)" @click="playAgain" class="btn playagain-btn">
+    <button v-if="full && !notFinish(game)" @click="playAgain" class="btn playagain-btn animated fadeIn">
       Play again
     </button>
 
@@ -18,6 +18,10 @@
       <span style="font-size: 20px">🤝</span>&nbsp;&nbsp;{{is0x0(game.requestDraw) ? 'Request Draw' :
       isMe(game.requestDraw) ? 'Requested' : 'Accept Draw'}}
     </button>
+    <div v-if="full && notFinish(game) && !is0x0(game.requestDraw) && isMe(game.requestDraw)"
+      style="color: rgba(255, 255, 255, 0.6); font-size: 13px; font-family: monospace; margin-top: -10px; margin-bottom: 15px;">
+      {{game.requestDraw == game.playerO ? 'Continue play until Player O accept draw' : 'Continue play until Player Y accept draw'}}
+    </div>
     <div v-if="full && notFinish(game) && !is0x0(game.requestDraw) && !isMe(game.requestDraw)"
       style="color: rgba(255, 255, 255, 0.6); font-size: 13px; font-family: monospace; margin-top: -10px; margin-bottom: 15px;">
       {{game.requestDraw == game.playerO ? 'Player O request Draw' : 'Player Y request Draw'}}
@@ -26,7 +30,7 @@
       <span style="font-size: 20px">🏳</span>&nbsp;&nbsp;Surrender
     </button> -->
 
-    <div v-if="address" v-show="showChat" class="chatbox animated fadeInUp faster">
+    <div v-if="address && showChat > 0" v-show="showChat % 2" class="chatbox animated fadeInUp faster">
       <div class="title">
         <div>{{full ? `Chat with ${isMe(game.playerX) ? 'PlayerO' : 'PlayerX'}` : 'ChatBox Global' }}</div>
         <button @click="toggleChat" class="chatbox-close-btn"><img src="./imgs/close.svg" width="15px" /></button>
@@ -116,7 +120,6 @@ export default {
         Contract.login({
           tomowallet: true
         }, (err, address) => {
-          console.log(address);
           this.address = address;
           this.init();
         });
@@ -125,7 +128,6 @@ export default {
         Contract.login({
           metamask: true
         }, (err, address) => {
-          console.log(address);
           this.address = address;
           this.init();
         });
@@ -170,7 +172,7 @@ export default {
       }, 100);
     },
     toggleChat() {
-      this.showChat = !this.showChat;
+      this.showChat += 1;
     },
     emptyBoard() {
       var result = [];
@@ -203,7 +205,7 @@ export default {
         await Contract.get.checkTx(hash);
         this.isDoingTransaction = false;
         this.$Progress.finish();
-        this.$router.push('/');
+        setTimeout(() => this.$router.back(), 100);
       }
       catch (ex) {
         console.error(ex);
@@ -216,7 +218,7 @@ export default {
           return;
         }
 
-        if (msg.indexOf('User denied transaction signature.') == -1) {
+        if (msg.indexOf('cancelled') == -1 && msg.indexOf('User denied transaction signature.') == -1) {
           this.errMsg = 'Error, Cannot quit this game. Refresh to try again. Error details: ' + msg;
         }
       }
@@ -234,7 +236,7 @@ export default {
         if (this.isDoingTransaction) return;
         if (this.game.result > 0 || (address0(this.game.playerX) && address0(this.game.playerO))) {
           this.isDoingTransaction = false;
-          this.$router.push('/');
+          this.$router.back();
         }
         else if (address0(this.game.playerX) || address0(this.game.playerO)) {
           this.$Progress.start();
@@ -243,14 +245,14 @@ export default {
           await Contract.get.checkTx(hash);
           this.isDoingTransaction = false;
           this.$Progress.finish();
-          this.$router.push('/');
+          setTimeout(() => this.$router.back(), 100);
         }
         else if (this.game.result == 0) {
           this.showConfirmModal = true;
         }
         else {
           this.isDoingTransaction = false;
-          this.$router.push('/');
+          this.$router.back();
         }
       }
       catch (ex) {
@@ -264,7 +266,7 @@ export default {
           return;
         }
 
-        if (msg.indexOf('User denied transaction signature.') == -1) {
+        if (msg.indexOf('cancelled') == -1 && msg.indexOf('User denied transaction signature.') == -1) {
           this.errMsg = 'Error, Cannot quit this game. Refresh to try again. Error details: ' + msg;
         }
       }
@@ -285,7 +287,9 @@ export default {
         movedAtBlock: 0,
         lastMove: 0,
         countDown: 30,
-        index: 0
+        betAmount: 0,
+        index: 0,
+        requestDraw: '0x0000000000000000000000000000000000000000'
       }
     },
     async playAgain() {
@@ -314,7 +318,7 @@ export default {
           return;
         }
 
-        if (msg.indexOf('User denied transaction signature.') == -1) {
+        if (msg.indexOf('cancelled') == -1 && msg.indexOf('User denied transaction signature.') == -1) {
           this.errMsg = 'Error, Cannot play again. Refresh to try again. Error details: ' + msg;
         }
       }
@@ -356,7 +360,7 @@ export default {
             return;
           }
 
-          if (msg.indexOf('User denied transaction signature.') == -1) {
+          if (msg.indexOf('cancelled') == -1 && msg.indexOf('User denied transaction signature.') == -1) {
             this.errMsg = 'Error, Cannot move. Refresh to try again. Error details: ' + msg;
           }
         };
@@ -364,7 +368,6 @@ export default {
     },
     checkWin(board, indexOfMove, v) {
       var XY = function (_x, _y) {
-        console.log(_x, _y)
         return _y * SIZE + _x;
       }
       const B = [];
@@ -419,6 +422,118 @@ export default {
       return null;
     },
     async getGame() {
+      if (this.address) {
+        var game = await Contract.get.gameOf(this.address)
+        if (game.playerX != this.address && game.playerO != this.address) {
+          return;
+        }
+        this.claimFinishGame(game);
+        var boardX = BigNumber(game.boardX).toString(2);
+        var boardO = BigNumber(game.boardO).toString(2);
+        game.board = [].concat(this.game.board);
+        for (var i = 1; i <= SIZE * SIZE; i++) {
+          if (boardX.length - i >= 0 && boardX[boardX.length - i] == '1') {
+            game.board[i - 1] = 1;
+          }
+          if (boardO.length - i >= 0 && boardO[boardO.length - i] == '1') {
+            game.board[i - 1] = 2;
+          }
+        }
+
+        if (this.game.index != game.index ||
+          this.game.playerX != game.playerX ||
+          this.game.playerO != game.playerO) {
+          this.resetStep();
+          this.setUpNewGame(game);
+        }
+        else if (this.game.moveOf != game.moveOf) {
+          this.resetStep();
+          this.setUpNewMove();
+        }
+
+        this.game.result = game.result;
+        this.game.moveOf = game.moveOf;
+        this.game.requestDraw = game.requestDraw;
+        this.game.board = game.board;
+        this.game.movedAtBlock = game.movedAtBlock;
+        this.game.lastMove = game.lastMove;
+        this.game.index = game.index;
+        this.game.playerX = game.playerX;
+        this.game.playerO = game.playerO;
+
+        var lastBlock = await Contract.get.lastBlock(true);
+        this.game.countDown = ((this.game.movedAtBlock + 15) - lastBlock.number) * 2;
+
+        if (this.game.countDown < 0) {
+          this.game.countDown = 0;
+          clearInterval(this.intervalCountDown);
+          this.intervalCountDown = 0;
+        }
+        else {
+          if (!this.intervalCountDown) {
+            this.startCountDown();
+          }
+        }
+      }
+    },
+    stopUpdateGame() {
+      Contract.get.offListenEvent('Move', 'ONMOVE');
+      Contract.get.offListenEvent('Move', 'ONNEWBLOCK');
+      clearInterval(this.intervalCountDown);
+      this.intervalCountDown = 0;
+      clearInterval(this.timoutStatus);
+      clearInterval(this.timeoutShowCountDown);
+    },
+    startCountDown() {
+      this.intervalCountDown = setInterval(() => {
+        this.game.countDown -= 1;
+        if (this.game.countDown < 0) {
+          this.game.countDown = 0;
+          clearInterval(this.intervalCountDown);
+          this.intervalCountDown = 0;
+        }
+      }, 1000);
+    },
+    startUpdateGame() {
+      Contract.get.onListenEvent('NEW_BLOCK', () => {
+        this.getGame();
+      }, 'ONNEWBLOCK');
+    },
+    resetStep() {
+      clearTimeout(this.timoutStatus);
+      clearTimeout(this.timeoutShowCountDown);
+      clearTimeout(this.timeoutWaiting);
+      clearInterval(this.intervalCountDown);
+      this.intervalCountDown = 0;
+      this.statusAnimated = 'bounceIn';
+      this.showCountDown = false;
+    },
+    setUpNewMove() {
+      this.timoutStatus = setTimeout(() => {
+        this.statusAnimated = 'zoomOut';
+        this.timeoutShowCountDown = setTimeout(() => {
+          this.showCountDown = true;
+        }, 500);
+      }, 3000);
+    },
+    setUpNewGame(game) {
+      if (!this.isWaiting) {
+        this.isWaiting = address0(game.playerX) || address0(game.playerO);
+      }
+      if (!address0(game.playerX) && !address0(game.playerO)) {
+        if (this.isWaiting) {
+          this.waitingAnimate = 'bounceOutUp';
+          this.timeoutWaiting = setTimeout(() => {
+            this.isWaiting = false;
+            this.setUpNewMove();
+          }, 1000);
+        }
+        else {
+          this.setUpNewMove();
+        }
+      }
+    },
+    async oldgetGame() {
       if (this.address) {
         var game = await Contract.get.gameOf(this.address)
         if (game.playerX != this.address && game.playerO != this.address) {
@@ -502,27 +617,6 @@ export default {
         }
       }
     },
-    stopUpdateGame() {
-      Contract.get.offListenEvent('Move', 'ONMOVE');
-      Contract.get.offListenEvent('Move', 'ONNEWBLOCK');
-      clearInterval(this.intervalCountDown);
-      clearInterval(this.timoutStatus);
-      clearInterval(this.timeoutShowCountDown);
-    },
-    startCountDown() {
-      this.intervalCountDown = setInterval(() => {
-        this.game.countDown -= 1;
-        if (this.game.countDown < 0) {
-          this.game.countDown = 0;
-          clearInterval(this.intervalCountDown);
-        }
-      }, 1000);
-    },
-    startUpdateGame() {
-      Contract.get.onListenEvent('NEW_BLOCK', () => {
-        this.getGame();
-      }, 'ONNEWBLOCK');
-    },
     async claimFinishGame(game) {
       try {
         if (!game) return;
@@ -548,7 +642,7 @@ export default {
           return;
         }
 
-        if (msg.indexOf('User denied transaction signature.') == -1) {
+        if (msg.indexOf('cancelled') == -1 && msg.indexOf('User denied transaction signature.') == -1) {
           this.errMsg = 'Error, Cannot claim finish this game. Refresh to try again. Error details: ' + msg;
         }
       }
@@ -574,8 +668,8 @@ export default {
           return;
         }
 
-        if (msg.indexOf('User denied transaction signature.') == -1) {
-          this.errMsg = 'Error, Cannot quit this game. Refresh to try again. Error details: ' + msg;
+        if (msg.indexOf('cancelled') == -1 && msg.indexOf('User denied transaction signature.') == -1) {
+          this.errMsg = 'Error, Cannot request draw. Refresh to try again. Error details: ' + msg;
         }
       }
     }
@@ -628,7 +722,7 @@ export default {
 
 .btn {
   background: white;
-  padding: 10px 20px;
+  padding: 10px 40px;
   font-family: var(--font-serif);
   border-radius: 50px;
   font-size: 30px;

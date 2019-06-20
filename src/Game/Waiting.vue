@@ -15,7 +15,7 @@ export default {
   .waiting {
     width: 250px;
     position: fixed;
-    top: 40%;
+    top: 35%;
     left: calc(50% - 125px);
     background: #ffffff;
     color: #333333;
